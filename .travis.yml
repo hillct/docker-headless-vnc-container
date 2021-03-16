@@ -19,6 +19,6 @@ after_success:
 ## use standard notification to committer
 #notifications:
 #    recipients:
-#      - "testautomatisierung@consol.de"
+#      - "hillct+docker-build-notification@gmail.com"
 #    on_success: change # default: change
 #    on_failure: always # default: always
