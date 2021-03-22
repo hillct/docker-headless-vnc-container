@@ -1,7 +1,8 @@
 # This Dockerfile is used to build an headles vnc image based on Ubuntu with Nvidia Container Toolkit support
 # Available versions include: 460.32.03-ubuntu18.04 460.32.03-ubuntu20.04 or add -aws 460.32.03-ubuntu18.04-aws
 ARG  OS_VERSION=460.32.03-ubuntu18.04
-FROM nvidia/driver:${OS_VERSION}
+#FROM nvidia/driver:${OS_VERSION}
+FROM nvcr.io/nvidia/l4t-base:r32.5.0
 
 ENV REFRESHED_AT 2018-10-29
 
