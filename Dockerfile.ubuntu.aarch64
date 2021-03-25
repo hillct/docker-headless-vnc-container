@@ -1,0 +1,86 @@
+# This Dockerfile is used to build an headles vnc image based on Ubuntu with Nvidia Container Toolkit support
+# Available versions include: 460.32.03-ubuntu18.04 460.32.03-ubuntu20.04 or add -aws 460.32.03-ubuntu18.04-aws
+ARG  OS_VERSION=460.32.03-ubuntu18.04
+#FROM nvidia/driver:${OS_VERSION}
+FROM nvcr.io/nvidia/l4t-base:r32.5.0
+
+ENV REFRESHED_AT 2018-10-29
+
+ARG wm=icewm
+
+LABEL io.k8s.description="Headless VNC Container with IceWM window manager, firefox and chromium" \
+      io.k8s.display-name="Headless VNC Container based on Ubuntu" \
+      io.openshift.expose-services="6901:http,5901:xvnc" \
+      mainainer="hillct+docker-images@gmail.com" \
+      io.openshift.tags="vnc, ubuntu, icewm" \
+      io.openshift.non-scalable=true
+
+## Connection ports for controlling the UI:
+# VNC port:5901
+# noVNC webport, connect via http://IP:6901/?password=vncpassword
+ENV DISPLAY=:1 \
+    VNC_PORT=5901 \
+    NO_VNC_PORT=6901
+EXPOSE $VNC_PORT $NO_VNC_PORT
+
+### Envrionment config
+ENV HOME=/headless \
+    TERM=xterm \
+    WINDOW_MANAGER=$wm \
+    STARTUPDIR=/dockerstartup \
+    INST_SCRIPTS=/headless/install \
+    NO_VNC_HOME=/headless/noVNC \
+    DEBIAN_FRONTEND=noninteractive \
+    VNC_COL_DEPTH=24 \
+    VNC_RESOLUTION=1280x1024 \
+    VNC_PW=vncpassword \
+    VNC_VIEW_ONLY=false \
+    LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+WORKDIR $HOME
+
+### Add all install scripts for further steps
+ADD ./src/common/install/ $INST_SCRIPTS/
+ADD ./src/ubuntu/install/ $INST_SCRIPTS/
+
+### Install IceWM config files
+ADD ./src/ubuntu/icewm/ $HOME/
+
+RUN find $INST_SCRIPTS -name '*.sh' -exec chmod a+x {} +
+
+### Install some common tools
+# Pyhon for Socketify
+# ttf-wqy-zenhei preferred font
+# libNss wrapper and gettext as dependency
+# TigerVNC server
+# Generate Locale Data
+# 4 lines - Sockeify and noVNC installation
+RUN apt update -y && apt-get install -y vim wget net-tools locales bzip2 gnupg ca-certificates \
+    python-numpy \
+    ttf-wqy-zenhei \
+    libnss-wrapper gettext \
+    tigervnc-standalone-server \
+	&& locale-gen en_US.UTF-8 \
+	&&  mkdir -p $NO_VNC_HOME/utils/websockify \
+	&& wget -qO- https://github.com/novnc/noVNC/archive/v1.0.0.tar.gz | tar xz --strip 1 -C $NO_VNC_HOME \
+	&& wget -qO- https://github.com/novnc/websockify/archive/v0.6.1.tar.gz | tar xz --strip 1 -C $NO_VNC_HOME/utils/websockify \
+	&& chmod +x -v $NO_VNC_HOME/utils/*.sh && ln -s $NO_VNC_HOME/vnc_lite.html $NO_VNC_HOME/index.htm \
+	&&  if [ "$WINDOW_MANAGER" = "xfce" ]; then \
+		apt-get install -y supervisor xfce4 xfce4-terminal xterm ;\
+	    else \
+		apt-get install -y supervisor icewm xterm xfonts-base xauth xinit ;\
+	    fi ;\
+	apt-get purge -y pm-utils xscreensaver* && apt-get autoremove -y && apt-get clean -y
+
+### Install firefox Chromium and Google Chrome browsers (install scrips in /headless/install
+
+### configure startup
+#RUN $INST_SCRIPTS/libnss_wrapper.sh
+RUN echo 'source $STARTUPDIR/generate_container_user' >> $HOME/.bashrc
+
+ADD ./src/common/scripts $STARTUPDIR
+RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
+
+USER 1000
+
+ENTRYPOINT ["/dockerstartup/entrypoint.sh"]
+CMD ["--wait"]
